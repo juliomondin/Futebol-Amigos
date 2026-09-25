@@ -45,6 +45,6 @@ O endereço fica `algum-nome.vercel.app`. Não precisa de domínio pago.
    - `TURSO_AUTH_TOKEN`
    - `AUTH_SECRET` — uma frase longa, diferente da de exemplo
    - `ADMIN_USER` e `ADMIN_PASSWORD` — só valem na primeira subida, quando o banco ainda não tem administrador
-5. Abra o site, entre e troque a senha no botão **Senha**.
+5. Abra o site, entre e troque a senha no botão **Senha**. No ar, a tela de login não mostra a senha.
 
 Sem o Turso, a Vercel não guarda o arquivo do SQLite e a lista se perde.

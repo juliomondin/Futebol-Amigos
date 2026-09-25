@@ -55,6 +55,8 @@ export async function updatePassword(userId: string, password: string) {
 }
 
 export async function getLoginHint() {
+  if (process.env.NODE_ENV === "production") return null;
+
   const user = await dbGet<UserRow>("SELECT id, username, password_hash FROM users LIMIT 1");
 
   if (!user) return null;
