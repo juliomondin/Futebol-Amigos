@@ -146,15 +146,15 @@ export async function addArrival(_prev: ActionState, formData: FormData): Promis
   }
 }
 
-export async function setPaid(entryId: string, paid: boolean): Promise<ActionState> {
+export async function setPaid(entryId: string, paid: boolean, formData?: FormData) {
+  void formData;
   try {
     await verifySession();
     setPlayerPaid(entryId, paid);
-    const dayId = entryDayId(entryId);
-    refresh(dayId);
-    return { ok: true };
+    refresh(entryDayId(entryId));
   } catch (error) {
-    return failure(error);
+    rethrowNext(error);
+    console.error(error);
   }
 }
 

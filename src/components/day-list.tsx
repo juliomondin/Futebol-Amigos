@@ -1,19 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useOptimistic } from "react";
-import { ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
-import {
-  correctName,
-  deleteArrival,
-  moveArrival,
-  setPaid,
-} from "@/lib/actions";
+import { Check, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
+import { correctName, deleteArrival, moveArrival, setPaid } from "@/lib/actions";
 import { listsLabel } from "@/lib/names";
 import type { DayView, EntryView } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -24,34 +17,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type OptimisticEntry = EntryView;
-
 export function InteractiveDayList({ day }: { day: DayView }) {
-  const [entries, setOptimistic] = useOptimistic(
-    day.entries,
-    (current: OptimisticEntry[], update: { id: string; paid: boolean }) =>
-      current.map((entry) => (entry.id === update.id ? { ...entry, paid: update.paid } : entry)),
-  );
-  const [, startTransition] = useTransition();
-
-  function onToggle(id: string, paid: boolean) {
-    startTransition(async () => {
-      setOptimistic({ id, paid });
-      await setPaid(id, paid);
-    });
-  }
-
-  return <DayList entries={entries} status={day.status} onToggle={onToggle} />;
+  return <DayList entries={day.entries} status={day.status} />;
 }
 
 export function DayList({
   entries,
   status,
-  onToggle,
 }: {
   entries: EntryView[];
   status: "open" | "closed";
-  onToggle: (id: string, paid: boolean) => void;
 }) {
   const [target, setTarget] = useState<EntryView | null>(null);
   const [rename, setRename] = useState<EntryView | null>(null);
@@ -89,7 +64,6 @@ export function DayList({
               entry={entry}
               status={status}
               last={entry.position === entries.length}
-              onToggle={onToggle}
               onDelete={setTarget}
               onRename={setRename}
             />
@@ -114,7 +88,6 @@ export function DayList({
                 entry={entry}
                 status={status}
                 last={entry.position === entries.length}
-                onToggle={onToggle}
                 onDelete={setTarget}
                 onRename={setRename}
               />
@@ -147,14 +120,12 @@ function PlayerRow({
   entry,
   status,
   last,
-  onToggle,
   onDelete,
   onRename,
 }: {
   entry: EntryView;
   status: "open" | "closed";
   last: boolean;
-  onToggle: (id: string, paid: boolean) => void;
   onDelete: (entry: EntryView) => void;
   onRename: (entry: EntryView) => void;
 }) {
@@ -225,21 +196,31 @@ function PlayerRow({
           ) : null}
         </div>
       </div>
-      <label
-        className={
-          entry.paid
-            ? "flex shrink-0 items-center gap-2 rounded-xl border border-primary bg-primary/10 px-3 py-2 text-sm font-semibold"
-            : "flex shrink-0 items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-medium text-muted-foreground"
-        }
-      >
-        <Checkbox
-          checked={entry.paid}
-          onCheckedChange={(checked) => onToggle(entry.id, checked)}
-          className="size-6 rounded-md"
+      <form action={setPaid.bind(null, entry.id, !entry.paid)} className="shrink-0">
+        <Button
+          type="submit"
+          variant="outline"
+          aria-pressed={entry.paid}
           aria-label={`${entry.playerName} pagou?`}
-        />
-        Pagou?
-      </label>
+          className={
+            entry.paid
+              ? "h-12 gap-2 rounded-2xl border-2 border-primary bg-primary px-3 text-base text-primary-foreground hover:bg-primary/90"
+              : "h-12 gap-2 rounded-2xl border-2 border-pitch bg-white px-3 text-base text-foreground hover:bg-bib/50"
+          }
+        >
+          <span
+            aria-hidden
+            className={
+              entry.paid
+                ? "grid size-6 place-items-center rounded-md border-2 border-primary-foreground bg-primary-foreground text-primary"
+                : "grid size-6 place-items-center rounded-md border-2 border-pitch bg-white"
+            }
+          >
+            {entry.paid ? <Check className="size-4" strokeWidth={3} /> : null}
+          </span>
+          Pagou?
+        </Button>
+      </form>
     </li>
   );
 }

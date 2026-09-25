@@ -352,6 +352,17 @@ export function addPlayer(dayId: string, rawName: string) {
     );
     if (!day) throw new AppError("Não há uma lista aberta.");
 
+    const latest = one<{ player_key: string; created_at: string }>(
+      "SELECT player_key, created_at FROM entries WHERE day_id = ? ORDER BY position DESC LIMIT 1",
+      dayId,
+    );
+    if (latest?.player_key === key) {
+      const age = Date.now() - new Date(latest.created_at).getTime();
+      if (age >= 0 && age < 2500) {
+        throw new AppError(`${name} acabou de entrar. Se for outra pessoa, espera um instante e anota de novo.`);
+      }
+    }
+
     const position = one<{ n: number }>(
       "SELECT COALESCE(MAX(position), 0) + 1 AS n FROM entries WHERE day_id = ?",
       dayId,

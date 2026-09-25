@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useActionState, useOptimistic, useState, useTransition } from "react";
-import { addArrival, beginNewDay, setPaid, type ActionState } from "@/lib/actions";
-import type { DayView, EntryView } from "@/lib/types";
+import { useEffect, useRef, useActionState, useState, useTransition } from "react";
+import { addArrival, beginNewDay, type ActionState } from "@/lib/actions";
+import type { DayView } from "@/lib/types";
 import { DayList } from "@/components/day-list";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,32 +16,29 @@ import { Input } from "@/components/ui/input";
 
 export function TodayScreen({ day }: { day: DayView }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(addArrival, null);
-  const [entries, setOptimistic] = useOptimistic(
-    day.entries,
-    (current: EntryView[], update: { id: string; paid: boolean }) =>
-      current.map((entry) => (entry.id === update.id ? { ...entry, paid: update.paid } : entry)),
-  );
-  const [, startToggle] = useTransition();
+  const submittedName = useRef("");
+  const entries = day.entries;
   const unpaid = entries.filter((entry) => !entry.paid);
   const onField = Math.min(10, entries.length);
   const waiting = Math.max(0, entries.length - 10);
 
-  function onToggle(id: string, paid: boolean) {
-    startToggle(async () => {
-      setOptimistic({ id, paid });
-      await setPaid(id, paid);
-    });
-  }
-
   useEffect(() => {
-    if (!state?.ok) return;
+    if (pending) return;
     const input = document.getElementById("player-name");
-    if (input instanceof HTMLInputElement) {
-      input.form?.reset();
+    if (!(input instanceof HTMLInputElement)) return;
+
+    if (state?.error && input.value === "") {
+      input.value = submittedName.current;
       input.focus();
+      return;
     }
-    document.getElementById("arrival-end")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [state]);
+
+    if (state?.ok && input.value === submittedName.current) {
+      input.value = "";
+    }
+
+    if (state?.ok) input.focus();
+  }, [pending, state]);
 
   return (
     <div className="grid gap-4">
@@ -62,7 +59,22 @@ export function TodayScreen({ day }: { day: DayView }) {
         <Stat label="Sem pagar" value={unpaid.length} alert={unpaid.length > 0} />
       </dl>
 
-      <form action={formAction} className="sheet grid gap-3 p-3 sm:grid-cols-[1fr_auto] sm:items-center">
+      <form
+        action={formAction}
+        className="sheet grid gap-3 p-3 sm:grid-cols-[1fr_auto] sm:items-center"
+        onSubmit={(event) => {
+          const input = event.currentTarget.elements.namedItem("name");
+          if (!(input instanceof HTMLInputElement)) return;
+          submittedName.current = input.value;
+          const submitted = input.value;
+          queueMicrotask(() => {
+            if (input.value === submitted) {
+              input.value = "";
+              input.focus();
+            }
+          });
+        }}
+      >
         <label className="grid gap-1">
           <span className="px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Quem chegou
@@ -94,7 +106,7 @@ export function TodayScreen({ day }: { day: DayView }) {
       </form>
 
       <div className="sheet overflow-hidden">
-        <DayList entries={entries} status="open" onToggle={onToggle} />
+        <DayList entries={entries} status="open" />
       </div>
 
       <NewDayButton label={day.label} unpaidNames={unpaid.map((entry) => entry.playerName)} empty={entries.length === 0} />
