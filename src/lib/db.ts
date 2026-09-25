@@ -21,7 +21,11 @@ interface SqlDb extends SqlExecutor {
 const txContext = new AsyncLocalStorage<SqlExecutor>();
 const lockOwner = new AsyncLocalStorage<true>();
 
-const globalForDb = globalThis as unknown as { __futebolSql?: Promise<SqlDb> };
+const SCHEMA_VERSION = 2;
+const globalForDb = globalThis as unknown as {
+  __futebolSql?: Promise<SqlDb>;
+  __futebolSchema?: number;
+};
 
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS users (
@@ -68,6 +72,25 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_debts_open ON debts(settled, player_key);
   CREATE INDEX IF NOT EXISTS idx_days_status ON days(status);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_one_open_day ON days(status) WHERE status = 'open';
+
+  CREATE TABLE IF NOT EXISTS players (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    player_key TEXT NOT NULL UNIQUE,
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS month_payments (
+    id TEXT PRIMARY KEY,
+    player_key TEXT NOT NULL,
+    year_month TEXT NOT NULL,
+    paid INTEGER NOT NULL DEFAULT 0 CHECK (paid IN (0, 1)),
+    paid_at TEXT,
+    UNIQUE (player_key, year_month)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_month_open ON month_payments(paid, player_key);
 `;
 
 function rowObject<T>(columns: string[], row: ResultSet["rows"][number]): T {
@@ -190,6 +213,7 @@ async function openLocal(): Promise<SqlDb> {
 
   const db = new LocalDb(raw);
   await seedAdmin(db);
+  await backfillRoster(db);
   return db;
 }
 
@@ -202,6 +226,7 @@ async function openRemote(url: string): Promise<SqlDb> {
   await client.executeMultiple(SCHEMA);
   const db = new RemoteDb(client);
   await seedAdmin(db);
+  await backfillRoster(db);
   return db;
 }
 
@@ -215,7 +240,32 @@ async function openDatabase(): Promise<SqlDb> {
   return url ? openRemote(url) : openLocal();
 }
 
+async function backfillRoster(db: SqlDb) {
+  const rows = await db.all<{ player_name: string; player_key: string; created_at: string }>(
+    `SELECT player_name, player_key, MIN(created_at) AS created_at
+     FROM entries
+     GROUP BY player_key`,
+  );
+
+  for (const row of rows) {
+    const existing = await db.get<{ id: string }>("SELECT id FROM players WHERE player_key = ?", row.player_key);
+    if (existing) continue;
+    await db.run(
+      "INSERT INTO players (id, name, player_key, active, created_at) VALUES (?, ?, ?, 1, ?)",
+      crypto.randomUUID(),
+      row.player_name,
+      row.player_key,
+      row.created_at,
+    );
+  }
+}
+
 function getDb() {
+  if (globalForDb.__futebolSchema !== SCHEMA_VERSION) {
+    globalForDb.__futebolSql = undefined;
+    globalForDb.__futebolSchema = SCHEMA_VERSION;
+  }
+
   globalForDb.__futebolSql ??= openDatabase().catch((error) => {
     globalForDb.__futebolSql = undefined;
     throw error;

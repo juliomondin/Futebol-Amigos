@@ -28,6 +28,29 @@ export function saoPauloDateKey(date: Date) {
   }).format(date);
 }
 
+export function saoPauloMonthKey(date = new Date()) {
+  return saoPauloDateKey(date).slice(0, 7);
+}
+
+export function formatMonthName(yearMonth: string) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const formatted = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 15)));
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+export function formatMonthLabel(yearMonth: string) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const formatted = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 15)));
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
 export function formatDateTime(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",

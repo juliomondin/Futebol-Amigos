@@ -18,7 +18,7 @@ export default async function HistoryPage() {
           Histórico
         </h1>
         <p className="mt-3 text-sm leading-6 text-pitch-ink/75">
-          Cada dia fechado fica aqui, com quem pagou e quem ficou devendo.
+          Cada dia fechado fica aqui, na ordem em que o pessoal chegou.
         </p>
       </header>
 
@@ -31,22 +31,17 @@ export default async function HistoryPage() {
         </div>
       ) : (
         <ul className="grid gap-3">
-          {days.map((day) => {
-            const unpaid = day.total - day.paid;
-            return (
+          {days.map((day) => (
               <li key={day.id}>
                 <Link href={`/dia/${day.id}`} className="sheet block p-4 transition hover:ring-2 hover:ring-bib">
                   <h2 className="font-heading text-2xl tracking-wide uppercase">{day.label}</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {day.total} {day.total === 1 ? "jogador" : "jogadores"}
-                    {" · "}
-                    {unpaid === 0 ? "todo mundo pagou" : `${day.paid} pagaram · ${unpaid} sem pagar`}
+                    {day.total} {day.total === 1 ? "jogador" : "jogadores"} na ordem de chegada
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">Fechado em {formatDateTime(day.closedAt)}</p>
                 </Link>
               </li>
-            );
-          })}
+            ))}
         </ul>
       )}
     </div>

@@ -20,15 +20,21 @@ export type HistoryDay = {
   label: string;
   closedAt: string;
   total: number;
-  paid: number;
 };
 
 export type DebtItem = {
   id: string;
-  entryId: string;
-  dayId: string;
-  dayLabel: string;
-  createdAt: string;
+  yearMonth: string;
+  label: string;
+};
+
+export type RosterPlayer = {
+  id: string;
+  name: string;
+  playerKey: string;
+  monthPaid: boolean;
+  owedMonths: number;
+  present: boolean;
 };
 
 export type DebtorGroup = {
@@ -40,6 +46,6 @@ export type DebtorGroup = {
 export type SettledDebt = {
   id: string;
   playerName: string;
-  dayLabel: string;
+  label: string;
   settledAt: string;
 };

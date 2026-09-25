@@ -14,8 +14,6 @@ export default async function ClosedDayPage({ params }: { params: Promise<{ id: 
   if (!day) notFound();
   if (day.status === "open") redirect("/");
 
-  const unpaid = day.entries.filter((entry) => !entry.paid).length;
-
   return (
     <div className="grid gap-4">
       <header>
@@ -26,8 +24,7 @@ export default async function ClosedDayPage({ params }: { params: Promise<{ id: 
           {day.label}
         </h1>
         <p className="mt-3 text-sm leading-6 text-pitch-ink/75">
-          Lista encerrada. Se alguém pagar depois, marca o cheque: a dívida daquele dia sai dos devedores.
-          {unpaid > 0 ? ` Ainda faltam ${unpaid} pagamentos.` : " Todo mundo desta lista pagou."}
+          Ordem de chegada deste dia. O pagamento mora no elenco, por mês.
         </p>
       </header>
       <div className="sheet overflow-hidden">

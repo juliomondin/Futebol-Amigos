@@ -1,6 +1,6 @@
 # Futebol & Amigos
 
-Lista de chegada para o futebol do grupo. Quem chega entra no fim da fila. Os 10 primeiros jogam a primeira partida — os times ficam com eles. Cada nome tem um cheque de **Pagou?**. Quando o dia fecha, quem não pagou fica salvo como devedor.
+Lista de chegada para o futebol do grupo. O elenco guarda quem joga. No dia, essa gente entra na ordem de chegada. Os 10 primeiros jogam a primeira partida — os times ficam com eles. O pagamento é a mensalidade do mês, não o jogo.
 
 Só o administrador entra no app.
 
@@ -24,18 +24,18 @@ Para definir o administrador antes de criar o banco, copie `.env.example` para `
 
 ## O que dá para fazer
 
-- Anotar quem chegou, na ordem.
+- Cadastrar o elenco de quem joga.
+- No dia, marcar a chegada a partir desse elenco, na ordem.
 - Subir, descer, corrigir o nome ou tirar alguém da lista do dia aberto.
-- Marcar **Pagou?**
-- **Começar novo dia**: a lista vai para o histórico e quem não pagou vira devedor.
-- Em **Devedores**, quitar um dia ou todas as dívidas de uma pessoa.
-- Num dia já encerrado, desmarcar o pagamento devolve a pessoa para devedores.
+- Marcar a mensalidade do mês no elenco ou na lista do dia.
+- **Começar novo dia**: a ordem vai para o histórico. O pagamento do mês continua.
+- Em **Devem**, quitar um mês ou todos os meses em aberto de uma pessoa.
 
 Nesta máquina os dados ficam em `data/futebol.db`. No ar, o app usa um banco Turso (as variáveis `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`).
 
 ## Colocar no ar de graça
 
-O endereço fica `algum-nome.vercel.app`. Não precisa de domínio pago.
+O endereço no ar é [futebol-amigos-virid.vercel.app](https://futebol-amigos-virid.vercel.app). Não precisa de domínio pago.
 
 1. Crie uma conta em [turso.tech](https://turso.tech). O plano starter não pede cartão.
 2. Crie um banco vazio e copie a URL (`libsql://...`) e o token.

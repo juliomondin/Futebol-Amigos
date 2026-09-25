@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { monthsLabel } from "@/lib/names";
 import { z } from "zod";
 import {
   checkPassword,
@@ -14,12 +15,16 @@ import {
 import {
   AppError,
   addPlayer,
+  checkInPlayer,
+  deactivatePlayer,
   ensureOpenDay,
   entryDayId,
   movePlayer,
+  registerPlayer,
   removePlayer,
   renamePlayer,
   setPlayerPaid,
+  setRosterMonthPaid,
   settleDebt,
   settlePlayerDebts,
   startNewDay,
@@ -59,6 +64,7 @@ function failure(error: unknown): ActionState {
 
 function refresh(dayId?: string) {
   revalidatePath("/");
+  revalidatePath("/elenco");
   revalidatePath("/devedores");
   revalidatePath("/historico");
   if (dayId) revalidatePath(`/dia/${dayId}`);
@@ -133,16 +139,66 @@ export async function addArrival(_prev: ActionState, formData: FormData): Promis
     refresh(day.id);
 
     if (result.debtCount > 0) {
-      const lists = result.debtCount === 1 ? "outra lista" : `${result.debtCount} listas`;
       return {
         ok: true,
-        warning: `${result.name} deve ${lists}. Vale cobrar antes de entrar.`,
+        warning: `${result.name} deve ${monthsLabel(result.debtCount)}. A mensalidade não acompanha o jogo.`,
       };
     }
 
     return { ok: true };
   } catch (error) {
     return failure(error);
+  }
+}
+
+export async function savePlayer(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    await verifySession();
+    const parsed = nameSchema.safeParse(formData.get("name"));
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Nome inválido." };
+    }
+    await registerPlayer(parsed.data);
+    refresh();
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function checkIn(playerId: string, formData?: FormData) {
+  void formData;
+  try {
+    await verifySession();
+    await checkInPlayer(playerId);
+    refresh();
+  } catch (error) {
+    rethrowNext(error);
+    console.error(error);
+  }
+}
+
+export async function setRosterPaid(playerId: string, paid: boolean, formData?: FormData) {
+  void formData;
+  try {
+    await verifySession();
+    await setRosterMonthPaid(playerId, paid);
+    refresh();
+  } catch (error) {
+    rethrowNext(error);
+    console.error(error);
+  }
+}
+
+export async function removeFromRoster(playerId: string, formData?: FormData) {
+  void formData;
+  try {
+    await verifySession();
+    await deactivatePlayer(playerId);
+    refresh();
+  } catch (error) {
+    rethrowNext(error);
+    console.error(error);
   }
 }
 

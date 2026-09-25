@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/", label: "Hoje" },
-  { href: "/devedores", label: "Devedores" },
+  { href: "/elenco", label: "Elenco" },
+  { href: "/devedores", label: "Devem" },
   { href: "/historico", label: "Histórico" },
 ];
 
@@ -53,7 +54,7 @@ export function AppShell({
       </header>
       <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28 md:pb-16">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-pitch/95 backdrop-blur-md md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-3 px-2 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto grid max-w-xl grid-cols-4 px-2 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))]">
           {links.map((link) => (
             <NavLink key={link.href} href={link.href} debtCount={debtCount} stacked />
           ))}

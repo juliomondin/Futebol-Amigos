@@ -1,6 +1,6 @@
 import "server-only";
 
-import { formatDayLabel, formatTime, saoPauloDateKey } from "@/lib/dates";
+import { formatDayLabel, formatMonthLabel, formatTime, saoPauloDateKey, saoPauloMonthKey } from "@/lib/dates";
 import { dbAll, dbGet, dbRun, withTransaction, type SqlValue } from "@/lib/db";
 import { cleanName, playerKey } from "@/lib/names";
 import type {
@@ -9,10 +9,11 @@ import type {
   DebtorGroup,
   EntryView,
   HistoryDay,
+  RosterPlayer,
   SettledDebt,
 } from "@/lib/types";
 
-export type { DayView, DebtItem, DebtorGroup, EntryView, HistoryDay, SettledDebt };
+export type { DayView, DebtItem, DebtorGroup, EntryView, HistoryDay, RosterPlayer, SettledDebt };
 export class AppError extends Error {}
 
 type DayRow = {
@@ -29,17 +30,6 @@ type EntryRow = {
   position: number;
   paid: number;
   previous_debts: number;
-};
-
-type DebtRow = {
-  id: string;
-  entry_id: string;
-  player_name: string;
-  player_key: string;
-  day_id: string;
-  day_label: string;
-  created_at: string;
-  settled_at: string | null;
 };
 
 type EntryContext = {
@@ -90,24 +80,150 @@ function mapEntry(row: EntryRow): EntryView {
 }
 
 async function readEntries(dayId: string) {
-  return (await many<EntryRow>(
-    `SELECT
-       e.id,
-       e.player_name,
-       e.position,
-       e.paid,
-       (
-         SELECT COUNT(*)
-         FROM debts dt
-         WHERE dt.player_key = e.player_key
-           AND dt.settled = 0
-           AND dt.entry_id != e.id
-       ) AS previous_debts
-     FROM entries e
-     WHERE e.day_id = ?
-     ORDER BY e.position ASC`,
+  const month = saoPauloMonthKey();
+  return (
+    await many<EntryRow>(
+      `SELECT
+         e.id,
+         e.player_name,
+         e.position,
+         COALESCE((
+           SELECT mp.paid
+           FROM month_payments mp
+           WHERE mp.player_key = e.player_key AND mp.year_month = ?
+         ), 0) AS paid,
+         (
+           SELECT COUNT(*)
+           FROM month_payments mp
+           WHERE mp.player_key = e.player_key
+             AND mp.paid = 0
+             AND mp.year_month < ?
+         ) AS previous_debts
+       FROM entries e
+       WHERE e.day_id = ?
+       ORDER BY e.position ASC`,
+      month,
+      month,
+      dayId,
+    )
+  ).map(mapEntry);
+}
+
+async function syncCurrentMonth() {
+  const month = saoPauloMonthKey();
+  const players = await many<{ player_key: string }>("SELECT player_key FROM players WHERE active = 1");
+  for (const player of players) {
+    const existing = await one(
+      "SELECT id FROM month_payments WHERE player_key = ? AND year_month = ?",
+      player.player_key,
+      month,
+    );
+    if (existing) continue;
+    await run(
+      "INSERT INTO month_payments (id, player_key, year_month, paid, paid_at) VALUES (?, ?, ?, 0, NULL)",
+      crypto.randomUUID(),
+      player.player_key,
+      month,
+    );
+  }
+}
+
+async function ensurePlayerMonth(playerKeyValue: string) {
+  const month = saoPauloMonthKey();
+  const existing = await one(
+    "SELECT id FROM month_payments WHERE player_key = ? AND year_month = ?",
+    playerKeyValue,
+    month,
+  );
+  if (existing) return;
+  await run(
+    "INSERT INTO month_payments (id, player_key, year_month, paid, paid_at) VALUES (?, ?, ?, 0, NULL)",
+    crypto.randomUUID(),
+    playerKeyValue,
+    month,
+  );
+}
+
+async function upsertPlayer(rawName: string) {
+  const name = cleanName(rawName);
+  const key = playerKey(name);
+  const existing = await one<{ id: string; name: string; active: number }>(
+    "SELECT id, name, active FROM players WHERE player_key = ?",
+    key,
+  );
+
+  if (existing) {
+    if (existing.active === 0) {
+      await run("UPDATE players SET active = 1 WHERE id = ?", existing.id);
+    }
+    await ensurePlayerMonth(key);
+    return { id: existing.id, name: existing.name, key };
+  }
+
+  const id = crypto.randomUUID();
+  await run(
+    "INSERT INTO players (id, name, player_key, active, created_at) VALUES (?, ?, ?, 1, ?)",
+    id,
+    name,
+    key,
+    nowIso(),
+  );
+  await ensurePlayerMonth(key);
+  return { id, name, key };
+}
+
+async function setMonthPaid(playerKeyValue: string, yearMonth: string, paid: boolean) {
+  const existing = await one<{ id: string }>(
+    "SELECT id FROM month_payments WHERE player_key = ? AND year_month = ?",
+    playerKeyValue,
+    yearMonth,
+  );
+  const paidAt = paid ? nowIso() : null;
+  if (!existing) {
+    await run(
+      "INSERT INTO month_payments (id, player_key, year_month, paid, paid_at) VALUES (?, ?, ?, ?, ?)",
+      crypto.randomUUID(),
+      playerKeyValue,
+      yearMonth,
+      paid ? 1 : 0,
+      paidAt,
+    );
+    return;
+  }
+  await run("UPDATE month_payments SET paid = ?, paid_at = ? WHERE id = ?", paid ? 1 : 0, paidAt, existing.id);
+}
+
+async function appendToDay(dayId: string, name: string, key: string) {
+  const already = await one(
+    "SELECT id FROM entries WHERE day_id = ? AND player_key = ?",
     dayId,
-  )).map(mapEntry);
+    key,
+  );
+  if (already) throw new AppError(`${name} já está na lista de hoje.`);
+
+  const position = await one<{ n: number }>(
+    "SELECT COALESCE(MAX(position), 0) + 1 AS n FROM entries WHERE day_id = ?",
+    dayId,
+  );
+
+  await run(
+    `INSERT INTO entries (id, day_id, player_name, player_key, position, paid, created_at)
+     VALUES (?, ?, ?, ?, ?, 0, ?)`,
+    crypto.randomUUID(),
+    dayId,
+    name,
+    key,
+    Number(position?.n ?? 1),
+    nowIso(),
+  );
+
+  const debts = await one<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM month_payments WHERE player_key = ? AND paid = 0 AND year_month < ?",
+    key,
+    saoPauloMonthKey(),
+  );
+
+  return { name, debtCount: Number(debts?.n ?? 0) };
 }
 
 async function toDayView(row: DayRow): Promise<DayView> {
@@ -165,52 +281,8 @@ async function insertOpenDay() {
   return toDayView(row);
 }
 
-async function applyPaid(entryId: string, paid: boolean) {
-  const entry = await entryContext(entryId);
-  if (!entry) throw new AppError("Esse nome não está na lista.");
-
-  await run("UPDATE entries SET paid = ? WHERE id = ?", paid ? 1 : 0, entryId);
-
-  if (paid) {
-    await run(
-      "UPDATE debts SET settled = 1, settled_at = ? WHERE entry_id = ? AND settled = 0",
-      nowIso(),
-      entryId,
-    );
-    return;
-  }
-
-  if (entry.day_status === "open") {
-    await run("DELETE FROM debts WHERE entry_id = ?", entryId);
-    return;
-  }
-
-  const existing = await one<{ id: string }>("SELECT id FROM debts WHERE entry_id = ?", entryId);
-  if (existing) {
-    await run(
-      "UPDATE debts SET settled = 0, settled_at = NULL, player_name = ?, player_key = ? WHERE entry_id = ?",
-      entry.player_name,
-      entry.player_key,
-      entryId,
-    );
-    return;
-  }
-
-  await run(
-    `INSERT INTO debts (
-       id, entry_id, player_name, player_key, day_id, day_label, settled, created_at, settled_at
-     ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL)`,
-    crypto.randomUUID(),
-    entry.id,
-    entry.player_name,
-    entry.player_key,
-    entry.day_id,
-    entry.day_label,
-    nowIso(),
-  );
-}
-
 export async function ensureOpenDay() {
+  await syncCurrentMonth();
   const existing = await findOpenDay();
   const today = saoPauloDateKey(new Date());
 
@@ -263,44 +335,51 @@ export async function getDay(id: string) {
 }
 
 export async function listHistory() {
-  return (await many<{
-    id: string;
-    label: string;
-    closed_at: string;
-    total: number;
-    paid: number;
-  }>(
-    `SELECT
-       d.id,
-       d.label,
-       d.closed_at,
-       (SELECT COUNT(*) FROM entries e WHERE e.day_id = d.id) AS total,
-       (SELECT COUNT(*) FROM entries e WHERE e.day_id = d.id AND e.paid = 1) AS paid
-     FROM days d
-     WHERE d.status = 'closed'
-     ORDER BY d.closed_at DESC`,
-  )).map((row) => ({
+  return (
+    await many<{
+      id: string;
+      label: string;
+      closed_at: string;
+      total: number;
+    }>(
+      `SELECT
+         d.id,
+         d.label,
+         d.closed_at,
+         (SELECT COUNT(*) FROM entries e WHERE e.day_id = d.id) AS total
+       FROM days d
+       WHERE d.status = 'closed'
+       ORDER BY d.closed_at DESC`,
+    )
+  ).map((row) => ({
     id: row.id,
     label: row.label,
     closedAt: row.closed_at,
     total: Number(row.total),
-    paid: Number(row.paid),
   }));
 }
 
 export async function countDebtorPeople() {
+  await syncCurrentMonth();
   const row = await one<{ n: number }>(
-    "SELECT COUNT(DISTINCT player_key) AS n FROM debts WHERE settled = 0",
+    "SELECT COUNT(DISTINCT player_key) AS n FROM month_payments WHERE paid = 0",
   );
   return Number(row?.n ?? 0);
 }
 
 export async function getDebtors() {
-  const open = await many<DebtRow>(
-    `SELECT id, entry_id, player_name, player_key, day_id, day_label, created_at, settled_at
-     FROM debts
-     WHERE settled = 0
-     ORDER BY created_at ASC`,
+  await syncCurrentMonth();
+  const open = await many<{
+    id: string;
+    player_name: string;
+    player_key: string;
+    year_month: string;
+  }>(
+    `SELECT mp.id, p.name AS player_name, mp.player_key, mp.year_month
+     FROM month_payments mp
+     JOIN players p ON p.player_key = mp.player_key
+     WHERE mp.paid = 0
+     ORDER BY mp.year_month ASC`,
   );
 
   const groups = new Map<string, DebtorGroup>();
@@ -314,25 +393,26 @@ export async function getDebtors() {
     current.playerName = debt.player_name;
     current.debts.push({
       id: debt.id,
-      entryId: debt.entry_id,
-      dayId: debt.day_id,
-      dayLabel: debt.day_label,
-      createdAt: debt.created_at,
+      yearMonth: debt.year_month,
+      label: formatMonthLabel(debt.year_month),
     });
     groups.set(debt.player_key, current);
   }
 
-  const settled = (await many<DebtRow>(
-    `SELECT id, entry_id, player_name, player_key, day_id, day_label, created_at, settled_at
-     FROM debts
-     WHERE settled = 1
-     ORDER BY settled_at DESC
-     LIMIT 12`,
-  )).map((debt) => ({
+  const settled = (
+    await many<{ id: string; player_name: string; year_month: string; paid_at: string }>(
+      `SELECT mp.id, p.name AS player_name, mp.year_month, mp.paid_at
+       FROM month_payments mp
+       JOIN players p ON p.player_key = mp.player_key
+       WHERE mp.paid = 1 AND mp.paid_at IS NOT NULL
+       ORDER BY mp.paid_at DESC
+       LIMIT 12`,
+    )
+  ).map((debt) => ({
     id: debt.id,
     playerName: debt.player_name,
-    dayLabel: debt.day_label,
-    settledAt: debt.settled_at ?? debt.created_at,
+    label: formatMonthLabel(debt.year_month),
+    settledAt: debt.paid_at,
   }));
 
   return {
@@ -343,10 +423,69 @@ export async function getDebtors() {
   };
 }
 
-export async function addPlayer(dayId: string, rawName: string) {
+export async function listRoster(): Promise<RosterPlayer[]> {
+  await syncCurrentMonth();
+  const month = saoPauloMonthKey();
+  const openDay = await findOpenDay();
+  const rows = await many<{
+    id: string;
+    name: string;
+    player_key: string;
+    month_paid: number;
+    owed_months: number;
+    present: number;
+  }>(
+    `SELECT
+       p.id,
+       p.name,
+       p.player_key,
+       COALESCE((
+         SELECT mp.paid FROM month_payments mp
+         WHERE mp.player_key = p.player_key AND mp.year_month = ?
+       ), 0) AS month_paid,
+       (
+         SELECT COUNT(*) FROM month_payments mp
+         WHERE mp.player_key = p.player_key AND mp.paid = 0 AND mp.year_month < ?
+       ) AS owed_months,
+       CASE WHEN EXISTS (
+         SELECT 1 FROM entries e WHERE e.day_id = ? AND e.player_key = p.player_key
+       ) THEN 1 ELSE 0 END AS present
+     FROM players p
+     WHERE p.active = 1`,
+    month,
+    month,
+    openDay?.id ?? "",
+  );
+
+  return rows
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      playerKey: row.player_key,
+      monthPaid: row.month_paid === 1,
+      owedMonths: Number(row.owed_months ?? 0),
+      present: row.present === 1,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+export async function deactivatePlayer(playerId: string) {
+  const player = await one<{ id: string }>("SELECT id FROM players WHERE id = ? AND active = 1", playerId);
+  if (!player) throw new AppError("Esse jogador não está no elenco.");
+  await run("UPDATE players SET active = 0 WHERE id = ?", playerId);
+}
+
+export async function registerPlayer(rawName: string) {
   const name = cleanName(rawName);
   const key = playerKey(name);
+  return withTransaction(async () => {
+    const existing = await one<{ active: number }>("SELECT active FROM players WHERE player_key = ?", key);
+    if (existing?.active === 1) throw new AppError("Esse nome já está no elenco.");
+    return upsertPlayer(name);
+  });
+}
 
+export async function addPlayer(dayId: string, rawName: string) {
   return withTransaction(async () => {
     const day = await one<DayRow>(
       "SELECT id, label, status, created_at, closed_at FROM days WHERE id = ? AND status = 'open'",
@@ -354,44 +493,37 @@ export async function addPlayer(dayId: string, rawName: string) {
     );
     if (!day) throw new AppError("Não há uma lista aberta.");
 
-    const latest = await one<{ player_key: string; created_at: string }>(
-      "SELECT player_key, created_at FROM entries WHERE day_id = ? ORDER BY position DESC LIMIT 1",
-      dayId,
-    );
-    if (latest?.player_key === key) {
-      const age = Date.now() - new Date(latest.created_at).getTime();
-      if (age >= 0 && age < 2500) {
-        throw new AppError(`${name} acabou de entrar. Se for outra pessoa, espera um instante e anota de novo.`);
-      }
-    }
+    const player = await upsertPlayer(rawName);
+    return appendToDay(dayId, player.name, player.key);
+  });
+}
 
-    const position = await one<{ n: number }>(
-      "SELECT COALESCE(MAX(position), 0) + 1 AS n FROM entries WHERE day_id = ?",
-      dayId,
+export async function checkInPlayer(playerId: string) {
+  const day = await ensureOpenDay();
+  return withTransaction(async () => {
+    const player = await one<{ id: string; name: string; player_key: string; active: number }>(
+      "SELECT id, name, player_key, active FROM players WHERE id = ?",
+      playerId,
     );
-
-    await run(
-      `INSERT INTO entries (id, day_id, player_name, player_key, position, paid, created_at)
-       VALUES (?, ?, ?, ?, ?, 0, ?)`,
-      crypto.randomUUID(),
-      dayId,
-      name,
-      key,
-      Number(position?.n ?? 1),
-      nowIso(),
-    );
-
-    const debts = await one<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM debts WHERE player_key = ? AND settled = 0",
-      key,
-    );
-
-    return { name, debtCount: Number(debts?.n ?? 0) };
+    if (!player || player.active !== 1) throw new AppError("Esse jogador não está no elenco.");
+    await ensurePlayerMonth(player.player_key);
+    return appendToDay(day.id, player.name, player.player_key);
   });
 }
 
 export async function setPlayerPaid(entryId: string, paid: boolean) {
-  await withTransaction(() => applyPaid(entryId, paid));
+  const entry = await entryContext(entryId);
+  if (!entry) throw new AppError("Esse nome não está na lista.");
+  await withTransaction(() => setMonthPaid(entry.player_key, saoPauloMonthKey(), paid));
+}
+
+export async function setRosterMonthPaid(playerId: string, paid: boolean) {
+  const player = await one<{ player_key: string; active: number }>(
+    "SELECT player_key, active FROM players WHERE id = ?",
+    playerId,
+  );
+  if (!player || player.active !== 1) throw new AppError("Esse jogador não está no elenco.");
+  await withTransaction(() => setMonthPaid(player.player_key, saoPauloMonthKey(), paid));
 }
 
 export async function movePlayer(entryId: string, direction: "up" | "down") {
@@ -440,14 +572,19 @@ export async function renamePlayer(entryId: string, rawName: string) {
   await withTransaction(async () => {
     const entry = await entryContext(entryId);
     if (!entry) throw new AppError("Esse nome não está na lista.");
+    if (key !== entry.player_key) {
+      const clash = await one("SELECT id FROM players WHERE player_key = ?", key);
+      if (clash) throw new AppError("Já existe alguém no elenco com esse nome.");
+    }
 
-    await run("UPDATE entries SET player_name = ?, player_key = ? WHERE id = ?", name, key, entryId);
+    await run("UPDATE players SET name = ?, player_key = ? WHERE player_key = ?", name, key, entry.player_key);
     await run(
-      "UPDATE debts SET player_name = ?, player_key = ? WHERE entry_id = ?",
+      "UPDATE entries SET player_name = ?, player_key = ? WHERE player_key = ?",
       name,
       key,
-      entryId,
+      entry.player_key,
     );
+    await run("UPDATE month_payments SET player_key = ? WHERE player_key = ?", key, entry.player_key);
   });
 }
 
@@ -466,49 +603,28 @@ export async function startNewDay() {
     }
 
     const createdAt = nowIso();
-
-    for (const entry of entries) {
-      if (entry.paid === 1) continue;
-      const existing = await one("SELECT id FROM debts WHERE entry_id = ?", entry.id);
-      if (existing) continue;
-
-      await run(
-        `INSERT INTO debts (
-           id, entry_id, player_name, player_key, day_id, day_label, settled, created_at, settled_at
-         ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL)`,
-        crypto.randomUUID(),
-        entry.id,
-        entry.player_name,
-        entry.player_key,
-        day.id,
-        day.label,
-        createdAt,
-      );
-    }
-
     await run("UPDATE days SET status = 'closed', closed_at = ? WHERE id = ?", createdAt, day.id);
     return insertOpenDay();
   });
 }
 
 export async function settleDebt(debtId: string) {
-  const debt = await one<{ entry_id: string; settled: number }>(
-    "SELECT entry_id, settled FROM debts WHERE id = ?",
+  const debt = await one<{ player_key: string; year_month: string; paid: number }>(
+    "SELECT player_key, year_month, paid FROM month_payments WHERE id = ?",
     debtId,
   );
-  if (!debt || debt.settled === 1) return;
-  await setPlayerPaid(debt.entry_id, true);
+  if (!debt || debt.paid === 1) return;
+  await withTransaction(() => setMonthPaid(debt.player_key, debt.year_month, true));
 }
 
 export async function settlePlayerDebts(key: string) {
-  const debts = await many<{ entry_id: string }>(
-    "SELECT entry_id FROM debts WHERE player_key = ? AND settled = 0",
+  const debts = await many<{ year_month: string }>(
+    "SELECT year_month FROM month_payments WHERE player_key = ? AND paid = 0",
     key,
   );
-
   if (debts.length === 0) return;
 
   await withTransaction(async () => {
-    for (const debt of debts) await applyPaid(debt.entry_id, true);
+    for (const debt of debts) await setMonthPaid(key, debt.year_month, true);
   });
 }

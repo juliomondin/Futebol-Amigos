@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Check, ChevronDown, ChevronUp, Pencil, Trash2 } from "lucide-react";
 import { correctName, deleteArrival, moveArrival, setPaid } from "@/lib/actions";
-import { listsLabel } from "@/lib/names";
+import { monthsLabel } from "@/lib/names";
 import type { DayView, EntryView } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,11 @@ export function InteractiveDayList({ day }: { day: DayView }) {
 export function DayList({
   entries,
   status,
+  monthName = "Mês",
 }: {
   entries: EntryView[];
   status: "open" | "closed";
+  monthName?: string;
 }) {
   const [target, setTarget] = useState<EntryView | null>(null);
   const [rename, setRename] = useState<EntryView | null>(null);
@@ -39,7 +41,7 @@ export function DayList({
       <div className="px-6 py-12 text-center">
         <p className="font-heading text-3xl tracking-wide uppercase">Ninguém chegou</p>
         <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
-          Anota o nome na ordem de chegada. Os 10 primeiros fecham a primeira partida.
+          Marca quem chegou, na ordem. Os 10 primeiros fecham a primeira partida.
         </p>
       </div>
     );
@@ -63,6 +65,7 @@ export function DayList({
               key={entry.id}
               entry={entry}
               status={status}
+              monthName={monthName}
               last={entry.position === entries.length}
               onDelete={setTarget}
               onRename={setRename}
@@ -87,6 +90,7 @@ export function DayList({
                 key={entry.id}
                 entry={entry}
                 status={status}
+                monthName={monthName}
                 last={entry.position === entries.length}
                 onDelete={setTarget}
                 onRename={setRename}
@@ -119,12 +123,14 @@ function SectionHeader({ title, detail, meta }: { title: string; detail: string;
 function PlayerRow({
   entry,
   status,
+  monthName,
   last,
   onDelete,
   onRename,
 }: {
   entry: EntryView;
   status: "open" | "closed";
+  monthName: string;
   last: boolean;
   onDelete: (entry: EntryView) => void;
   onRename: (entry: EntryView) => void;
@@ -148,7 +154,7 @@ function PlayerRow({
         </p>
         {entry.previousDebts > 0 ? (
           <Badge variant="destructive" className="mt-1 h-auto py-0.5">
-            Deve {listsLabel(entry.previousDebts)}
+            Deve {monthsLabel(entry.previousDebts)}
           </Badge>
         ) : null}
         <div className="mt-2 flex flex-wrap gap-1">
@@ -196,31 +202,33 @@ function PlayerRow({
           ) : null}
         </div>
       </div>
-      <form action={setPaid.bind(null, entry.id, !entry.paid)} className="shrink-0">
-        <Button
-          type="submit"
-          variant="outline"
-          aria-pressed={entry.paid}
-          aria-label={`${entry.playerName} pagou?`}
-          className={
-            entry.paid
-              ? "h-12 gap-2 rounded-2xl border-2 border-primary bg-primary px-3 text-base text-primary-foreground hover:bg-primary/90"
-              : "h-12 gap-2 rounded-2xl border-2 border-pitch bg-white px-3 text-base text-foreground hover:bg-bib/50"
-          }
-        >
-          <span
-            aria-hidden
+      {status === "open" ? (
+        <form action={setPaid.bind(null, entry.id, !entry.paid)} className="shrink-0">
+          <Button
+            type="submit"
+            variant="outline"
+            aria-pressed={entry.paid}
+            aria-label={`${entry.playerName} pagou ${monthName.toLowerCase()}?`}
             className={
               entry.paid
-                ? "grid size-6 place-items-center rounded-md border-2 border-primary-foreground bg-primary-foreground text-primary"
-                : "grid size-6 place-items-center rounded-md border-2 border-pitch bg-white"
+                ? "h-12 gap-2 rounded-2xl border-2 border-primary bg-primary px-3 text-base text-primary-foreground hover:bg-primary/90"
+                : "h-12 gap-2 rounded-2xl border-2 border-pitch bg-white px-3 text-base text-foreground hover:bg-bib/50"
             }
           >
-            {entry.paid ? <Check className="size-4" strokeWidth={3} /> : null}
-          </span>
-          Pagou?
-        </Button>
-      </form>
+            <span
+              aria-hidden
+              className={
+                entry.paid
+                  ? "grid size-6 place-items-center rounded-md border-2 border-primary-foreground bg-primary-foreground text-primary"
+                  : "grid size-6 place-items-center rounded-md border-2 border-pitch bg-white"
+              }
+            >
+              {entry.paid ? <Check className="size-4" strokeWidth={3} /> : null}
+            </span>
+            {monthName}
+          </Button>
+        </form>
+      ) : null}
     </li>
   );
 }

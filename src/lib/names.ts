@@ -12,3 +12,7 @@ export function playerKey(name: string) {
 export function listsLabel(count: number) {
   return count === 1 ? "1 lista" : `${count} listas`;
 }
+
+export function monthsLabel(count: number) {
+  return count === 1 ? "1 mês" : `${count} meses`;
+}

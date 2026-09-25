@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import Link from "next/link";
 import { markDebtPaid, markPlayerPaid } from "@/lib/actions";
 import { formatDateTime } from "@/lib/dates";
-import { listsLabel, playerKey } from "@/lib/names";
+import { monthsLabel, playerKey } from "@/lib/names";
 import type { DebtorGroup, SettledDebt } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +36,7 @@ export function DebtorsScreen({
           Devedores
         </h1>
         <p className="mt-3 text-sm leading-6 text-pitch-ink/75">
-          Quem fechou uma lista sem pagar fica salvo aqui. Quitar marca aquele dia como pago.
+          A dívida é do mês, não do jogo. Quitar marca a mensalidade como paga.
         </p>
       </header>
 
@@ -53,7 +52,7 @@ export function DebtorsScreen({
         <div className="sheet px-6 py-12 text-center">
           <p className="font-heading text-3xl tracking-wide uppercase">Ninguém deve</p>
           <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">
-            Quando um dia fechar com pagamento em aberto, o nome aparece aqui.
+            Quem não pagou a mensalidade aparece aqui, com o mês em aberto.
           </p>
         </div>
       ) : filtered.length === 0 ? (
@@ -67,7 +66,7 @@ export function DebtorsScreen({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold">{group.playerName}</h2>
-                  <p className="text-sm text-destructive">Deve {listsLabel(group.debts.length)}</p>
+                  <p className="text-sm text-destructive">Deve {monthsLabel(group.debts.length)}</p>
                 </div>
                 {group.debts.length > 1 ? <SettleAll playerKey={group.playerKey} /> : null}
               </div>
@@ -75,10 +74,7 @@ export function DebtorsScreen({
                 {group.debts.map((debt) => (
                   <li key={debt.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted px-3 py-2">
                     <div className="min-w-0">
-                      <Link href={`/dia/${debt.dayId}`} className="block truncate text-sm font-medium underline-offset-2 hover:underline">
-                        {debt.dayLabel}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">{formatDateTime(debt.createdAt)}</p>
+                      <p className="truncate text-sm font-medium">{debt.label}</p>
                     </div>
                     <SettleOne debtId={debt.id} />
                   </li>
@@ -96,7 +92,7 @@ export function DebtorsScreen({
             {settledFiltered.map((debt) => (
               <li key={debt.id} className="rounded-2xl border border-white/10 bg-black/15 px-3 py-2 text-sm text-pitch-ink/80">
                 <span className="font-medium text-pitch-ink">{debt.playerName}</span>
-                <span> · {debt.dayLabel}</span>
+                <span> · {debt.label}</span>
                 <span className="block text-xs text-pitch-ink/60">{formatDateTime(debt.settledAt)}</span>
               </li>
             ))}
