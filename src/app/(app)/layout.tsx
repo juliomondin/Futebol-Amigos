@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await verifySession();
-  const debtCount = countDebtorPeople();
+  const debtCount = await countDebtorPeople();
 
   return (
     <AppShell username={session.username} debtCount={debtCount}>

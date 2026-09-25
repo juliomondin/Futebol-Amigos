@@ -6,8 +6,8 @@ export const metadata: Metadata = {
   title: "Entrar",
 };
 
-export default function LoginPage() {
-  const hint = getLoginHint();
+export default async function LoginPage() {
+  const hint = await getLoginHint();
 
   return (
     <main className="flex min-h-full items-center justify-center px-4 py-10">

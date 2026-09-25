@@ -4,7 +4,7 @@ import { compareSync, hashSync } from "bcryptjs";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { getDb } from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 import {
   SESSION_COOKIE,
   decrypt,
@@ -40,25 +40,22 @@ export async function clearSession() {
 }
 
 export function findUserByUsername(username: string) {
-  return getDb()
-    .prepare("SELECT id, username, password_hash FROM users WHERE lower(username) = lower(?)")
-    .get(username) as UserRow | undefined;
+  return dbGet<UserRow>(
+    "SELECT id, username, password_hash FROM users WHERE lower(username) = lower(?)",
+    username,
+  );
 }
 
 export function checkPassword(password: string, hash: string) {
   return compareSync(password, hash);
 }
 
-export function updatePassword(userId: string, password: string) {
-  getDb()
-    .prepare("UPDATE users SET password_hash = ? WHERE id = ?")
-    .run(hashSync(password, 10), userId);
+export async function updatePassword(userId: string, password: string) {
+  await dbRun("UPDATE users SET password_hash = ? WHERE id = ?", hashSync(password, 10), userId);
 }
 
-export function getLoginHint() {
-  const user = getDb()
-    .prepare("SELECT id, username, password_hash FROM users LIMIT 1")
-    .get() as UserRow | undefined;
+export async function getLoginHint() {
+  const user = await dbGet<UserRow>("SELECT id, username, password_hash FROM users LIMIT 1");
 
   if (!user) return null;
 

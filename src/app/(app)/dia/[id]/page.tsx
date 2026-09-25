@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default async function ClosedDayPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const day = getDay(id);
+  const day = await getDay(id);
   if (!day) notFound();
   if (day.status === "open") redirect("/");
 

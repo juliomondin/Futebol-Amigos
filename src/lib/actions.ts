@@ -72,7 +72,7 @@ export async function login(_prev: ActionState, formData: FormData): Promise<Act
     return { error: "Informa usuário e senha." };
   }
 
-  const user = findUserByUsername(username);
+  const user = await findUserByUsername(username);
   if (!user || !checkPassword(password, user.password_hash)) {
     return { error: "Usuário ou senha não conferem." };
   }
@@ -95,7 +95,7 @@ export async function changePassword(
     const current = String(formData.get("current") ?? "");
     const next = String(formData.get("next") ?? "");
     const confirm = String(formData.get("confirm") ?? "");
-    const user = findUserByUsername(session.username);
+    const user = await findUserByUsername(session.username);
 
     if (!user || !checkPassword(current, user.password_hash)) {
       return { error: "A senha atual não confere." };
@@ -113,7 +113,7 @@ export async function changePassword(
       return { error: "Escolhe uma senha diferente da atual." };
     }
 
-    updatePassword(user.id, next);
+    await updatePassword(user.id, next);
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -128,8 +128,8 @@ export async function addArrival(_prev: ActionState, formData: FormData): Promis
       return { error: parsed.error.issues[0]?.message ?? "Nome inválido." };
     }
 
-    const day = ensureOpenDay();
-    const result = addPlayer(day.id, parsed.data);
+    const day = await ensureOpenDay();
+    const result = await addPlayer(day.id, parsed.data);
     refresh(day.id);
 
     if (result.debtCount > 0) {
@@ -150,8 +150,8 @@ export async function setPaid(entryId: string, paid: boolean, formData?: FormDat
   void formData;
   try {
     await verifySession();
-    setPlayerPaid(entryId, paid);
-    refresh(entryDayId(entryId));
+    await setPlayerPaid(entryId, paid);
+    refresh(await entryDayId(entryId));
   } catch (error) {
     rethrowNext(error);
     console.error(error);
@@ -161,8 +161,8 @@ export async function setPaid(entryId: string, paid: boolean, formData?: FormDat
 export async function moveArrival(entryId: string, direction: "up" | "down"): Promise<ActionState> {
   try {
     await verifySession();
-    movePlayer(entryId, direction);
-    refresh(entryDayId(entryId));
+    await movePlayer(entryId, direction);
+    refresh(await entryDayId(entryId));
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -172,8 +172,8 @@ export async function moveArrival(entryId: string, direction: "up" | "down"): Pr
 export async function deleteArrival(entryId: string): Promise<ActionState> {
   try {
     await verifySession();
-    const dayId = entryDayId(entryId);
-    removePlayer(entryId);
+    const dayId = await entryDayId(entryId);
+    await removePlayer(entryId);
     refresh(dayId);
     return { ok: true };
   } catch (error) {
@@ -189,8 +189,8 @@ export async function correctName(entryId: string, name: string): Promise<Action
       return { error: parsed.error.issues[0]?.message ?? "Nome inválido." };
     }
 
-    renamePlayer(entryId, parsed.data);
-    refresh(entryDayId(entryId));
+    await renamePlayer(entryId, parsed.data);
+    refresh(await entryDayId(entryId));
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -200,8 +200,8 @@ export async function correctName(entryId: string, name: string): Promise<Action
 export async function beginNewDay(): Promise<ActionState> {
   try {
     await verifySession();
-    const day = ensureOpenDay();
-    startNewDay();
+    const day = await ensureOpenDay();
+    await startNewDay();
     refresh(day.id);
     return { ok: true };
   } catch (error) {
@@ -212,7 +212,7 @@ export async function beginNewDay(): Promise<ActionState> {
 export async function markDebtPaid(debtId: string): Promise<ActionState> {
   try {
     await verifySession();
-    settleDebt(debtId);
+    await settleDebt(debtId);
     refresh();
     return { ok: true };
   } catch (error) {
@@ -223,7 +223,7 @@ export async function markDebtPaid(debtId: string): Promise<ActionState> {
 export async function markPlayerPaid(key: string): Promise<ActionState> {
   try {
     await verifySession();
-    settlePlayerDebts(key);
+    await settlePlayerDebts(key);
     refresh();
     return { ok: true };
   } catch (error) {

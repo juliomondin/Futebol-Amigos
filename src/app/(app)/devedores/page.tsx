@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "Devedores",
 };
 
-export default function DebtorsPage() {
-  const { groups, settled } = getDebtors();
+export default async function DebtorsPage() {
+  const { groups, settled } = await getDebtors();
   return <DebtorsScreen groups={groups} settled={settled} />;
 }

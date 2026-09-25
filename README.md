@@ -31,4 +31,20 @@ Para definir o administrador antes de criar o banco, copie `.env.example` para `
 - Em **Devedores**, quitar um dia ou todas as dívidas de uma pessoa.
 - Num dia já encerrado, desmarcar o pagamento devolve a pessoa para devedores.
 
-Os dados ficam em `data/futebol.db`, nesta máquina.
+Nesta máquina os dados ficam em `data/futebol.db`. No ar, o app usa um banco Turso (as variáveis `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`).
+
+## Colocar no ar de graça
+
+O endereço fica `algum-nome.vercel.app`. Não precisa de domínio pago.
+
+1. Crie uma conta em [turso.tech](https://turso.tech). O plano starter não pede cartão.
+2. Crie um banco vazio e copie a URL (`libsql://...`) e o token.
+3. Na [Vercel](https://vercel.com), plano Hobby, importe [juliomondin/Futebol-Amigos](https://github.com/juliomondin/Futebol-Amigos).
+4. Antes do primeiro deploy, defina:
+   - `TURSO_DATABASE_URL`
+   - `TURSO_AUTH_TOKEN`
+   - `AUTH_SECRET` — uma frase longa, diferente da de exemplo
+   - `ADMIN_USER` e `ADMIN_PASSWORD` — só valem na primeira subida, quando o banco ainda não tem administrador
+5. Abra o site, entre e troque a senha no botão **Senha**.
+
+Sem o Turso, a Vercel não guarda o arquivo do SQLite e a lista se perde.

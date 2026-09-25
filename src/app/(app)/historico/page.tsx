@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   title: "Histórico",
 };
 
-export default function HistoryPage() {
-  const days = listHistory();
+export default async function HistoryPage() {
+  const days = await listHistory();
 
   return (
     <div className="grid gap-4">
