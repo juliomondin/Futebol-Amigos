@@ -41,6 +41,24 @@ export function formatMonthName(yearMonth: string) {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
+export function shiftMonth(yearMonth: string, delta: number) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + delta, 15));
+  const nextYear = date.getUTCFullYear();
+  const nextMonth = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
+}
+
+export function eachMonth(start: string, end: string) {
+  const months: string[] = [];
+  let cursor = start;
+  while (cursor <= end && months.length < 240) {
+    months.push(cursor);
+    cursor = shiftMonth(cursor, 1);
+  }
+  return months;
+}
+
 export function formatMonthLabel(yearMonth: string) {
   const [year, month] = yearMonth.split("-").map(Number);
   const formatted = new Intl.DateTimeFormat("pt-BR", {

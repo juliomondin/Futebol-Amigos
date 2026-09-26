@@ -1,6 +1,13 @@
 import "server-only";
 
-import { formatDayLabel, formatMonthLabel, formatTime, saoPauloDateKey, saoPauloMonthKey } from "@/lib/dates";
+import {
+  eachMonth,
+  formatDayLabel,
+  formatMonthLabel,
+  formatTime,
+  saoPauloDateKey,
+  saoPauloMonthKey,
+} from "@/lib/dates";
 import { dbAll, dbGet, dbRun, withTransaction, type SqlValue } from "@/lib/db";
 import { cleanName, playerKey } from "@/lib/names";
 import type {
@@ -9,11 +16,23 @@ import type {
   DebtorGroup,
   EntryView,
   HistoryDay,
+  MonthLedger,
+  MonthLedgerPlayer,
   RosterPlayer,
   SettledDebt,
 } from "@/lib/types";
 
-export type { DayView, DebtItem, DebtorGroup, EntryView, HistoryDay, RosterPlayer, SettledDebt };
+export type {
+  DayView,
+  DebtItem,
+  DebtorGroup,
+  EntryView,
+  HistoryDay,
+  MonthLedger,
+  MonthLedgerPlayer,
+  RosterPlayer,
+  SettledDebt,
+};
 export class AppError extends Error {}
 
 type DayRow = {
@@ -627,4 +646,74 @@ export async function settlePlayerDebts(key: string) {
   await withTransaction(async () => {
     for (const debt of debts) await setMonthPaid(key, debt.year_month, true);
   });
+}
+
+export async function listMonthLedger(): Promise<MonthLedger[]> {
+  await syncCurrentMonth();
+  const current = saoPauloMonthKey();
+  const earliestPayment = await one<{ ym: string | null }>(
+    "SELECT MIN(year_month) AS ym FROM month_payments",
+  );
+  const earliestDay = await one<{ created_at: string | null }>(
+    "SELECT MIN(created_at) AS created_at FROM days",
+  );
+
+  const candidates = [current];
+  if (earliestPayment?.ym) candidates.push(earliestPayment.ym);
+  if (earliestDay?.created_at) candidates.push(saoPauloMonthKey(new Date(earliestDay.created_at)));
+  const start = candidates.reduce((left, right) => (left < right ? left : right));
+
+  const players = await many<{ name: string; player_key: string; active: number }>(
+    "SELECT name, player_key, active FROM players",
+  );
+  const payments = await many<{ player_key: string; year_month: string; paid: number }>(
+    "SELECT player_key, year_month, paid FROM month_payments WHERE year_month >= ? AND year_month <= ?",
+    start,
+    current,
+  );
+  const paymentByPlayerMonth = new Map(
+    payments.map((payment) => [`${payment.player_key}|${payment.year_month}`, payment.paid === 1]),
+  );
+
+  return eachMonth(start, current)
+    .reverse()
+    .map((yearMonth) => {
+      const rows: MonthLedgerPlayer[] = players
+        .filter(
+          (player) =>
+            player.active === 1 || paymentByPlayerMonth.has(`${player.player_key}|${yearMonth}`),
+        )
+        .map((player) => {
+          const recorded = paymentByPlayerMonth.has(`${player.player_key}|${yearMonth}`);
+          return {
+            playerKey: player.player_key,
+            name: player.name,
+            active: player.active === 1,
+            recorded,
+            paid: paymentByPlayerMonth.get(`${player.player_key}|${yearMonth}`) === true,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+      return {
+        yearMonth,
+        label: formatMonthLabel(yearMonth),
+        current: yearMonth === current,
+        paidCount: rows.filter((player) => player.paid).length,
+        openCount: rows.filter((player) => player.recorded && !player.paid).length,
+        total: rows.length,
+        players: rows,
+      };
+    });
+}
+
+export async function setLedgerMonth(playerKeyValue: string, yearMonth: string, paid: boolean) {
+  if (!/^\d{4}-\d{2}$/.test(yearMonth)) throw new AppError("Mês inválido.");
+  const current = saoPauloMonthKey();
+  if (yearMonth > current) throw new AppError("Esse mês ainda não chegou.");
+
+  const player = await one("SELECT player_key FROM players WHERE player_key = ?", playerKeyValue);
+  if (!player) throw new AppError("Esse jogador não está no elenco.");
+
+  await withTransaction(() => setMonthPaid(playerKeyValue, yearMonth, paid));
 }

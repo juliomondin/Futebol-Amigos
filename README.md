@@ -30,6 +30,7 @@ Para definir o administrador antes de criar o banco, copie `.env.example` para `
 - Marcar a mensalidade do mês no elenco ou na lista do dia.
 - **Começar novo dia**: a ordem vai para o histórico. O pagamento do mês continua.
 - Em **Devem**, quitar um mês ou todos os meses em aberto de uma pessoa.
+- Em **Meses**, ver cada mês de uso e quem pagou. Dá para marcar um mês só, mesmo que a pessoa deva vários.
 
 Nesta máquina os dados ficam em `data/futebol.db`. No ar, o app usa um banco Turso (as variáveis `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`).
 

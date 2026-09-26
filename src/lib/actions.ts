@@ -23,6 +23,7 @@ import {
   registerPlayer,
   removePlayer,
   renamePlayer,
+  setLedgerMonth,
   setPlayerPaid,
   setRosterMonthPaid,
   settleDebt,
@@ -67,6 +68,7 @@ function refresh(dayId?: string) {
   revalidatePath("/elenco");
   revalidatePath("/devedores");
   revalidatePath("/historico");
+  revalidatePath("/meses");
   if (dayId) revalidatePath(`/dia/${dayId}`);
 }
 
@@ -273,6 +275,23 @@ export async function markDebtPaid(debtId: string): Promise<ActionState> {
     return { ok: true };
   } catch (error) {
     return failure(error);
+  }
+}
+
+export async function setLedgerPaid(
+  playerKey: string,
+  yearMonth: string,
+  paid: boolean,
+  formData?: FormData,
+) {
+  void formData;
+  try {
+    await verifySession();
+    await setLedgerMonth(playerKey, yearMonth, paid);
+    refresh();
+  } catch (error) {
+    rethrowNext(error);
+    console.error(error);
   }
 }
 

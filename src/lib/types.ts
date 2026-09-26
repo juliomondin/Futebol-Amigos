@@ -49,3 +49,21 @@ export type SettledDebt = {
   label: string;
   settledAt: string;
 };
+
+export type MonthLedgerPlayer = {
+  playerKey: string;
+  name: string;
+  active: boolean;
+  paid: boolean;
+  recorded: boolean;
+};
+
+export type MonthLedger = {
+  yearMonth: string;
+  label: string;
+  current: boolean;
+  paidCount: number;
+  openCount: number;
+  total: number;
+  players: MonthLedgerPlayer[];
+};

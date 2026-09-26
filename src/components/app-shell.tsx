@@ -11,6 +11,7 @@ const links = [
   { href: "/", label: "Hoje" },
   { href: "/elenco", label: "Elenco" },
   { href: "/devedores", label: "Devem" },
+  { href: "/meses", label: "Meses" },
   { href: "/historico", label: "Histórico" },
 ];
 
@@ -46,7 +47,7 @@ export function AppShell({
             </form>
           </div>
         </div>
-        <nav className="mx-auto hidden w-full max-w-xl gap-2 px-4 pb-3 md:flex">
+        <nav className="mx-auto hidden w-full max-w-xl flex-wrap gap-2 px-4 pb-3 md:flex">
           {links.map((link) => (
             <NavLink key={link.href} href={link.href} debtCount={debtCount} />
           ))}
@@ -54,7 +55,7 @@ export function AppShell({
       </header>
       <main className="mx-auto w-full max-w-xl px-4 pt-5 pb-28 md:pb-16">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-pitch/95 backdrop-blur-md md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-4 px-2 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto grid max-w-xl grid-cols-5 px-1 pt-1 pb-[max(0.4rem,env(safe-area-inset-bottom))]">
           {links.map((link) => (
             <NavLink key={link.href} href={link.href} debtCount={debtCount} stacked />
           ))}
@@ -82,7 +83,7 @@ function NavLink({
       href={href}
       className={cn(
         "flex items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-medium text-pitch-ink/80",
-        stacked && "flex-col gap-0 rounded-xl px-1 py-2 text-xs",
+        stacked && "flex-col gap-0 rounded-xl px-0.5 py-2 text-[10px] leading-tight",
         active && "bg-bib text-pitch",
       )}
       aria-current={active ? "page" : undefined}
