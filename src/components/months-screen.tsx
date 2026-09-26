@@ -80,7 +80,7 @@ export function MonthsScreen({ months }: { months: MonthLedger[] }) {
                   }}
                 >
                   <span>
-                    <span className="block font-heading text-xl tracking-wide text-pitch-ink uppercase">
+                    <span className="block font-heading text-xl tracking-wide text-foreground uppercase">
                       {month.label}
                     </span>
                     <span className="text-sm text-muted-foreground">
@@ -88,7 +88,7 @@ export function MonthsScreen({ months }: { months: MonthLedger[] }) {
                       {month.current ? " · mês atual" : ""}
                     </span>
                   </span>
-                  <ChevronDown className={cn("size-5 shrink-0 text-pitch-ink/70", open && "rotate-180")} />
+                  <ChevronDown className={cn("size-5 shrink-0 text-foreground", open && "rotate-180")} />
                 </button>
                 {open ? (
                   <ul className="border-t border-border/80">
