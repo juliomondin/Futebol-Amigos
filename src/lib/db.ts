@@ -21,7 +21,7 @@ interface SqlDb extends SqlExecutor {
 const txContext = new AsyncLocalStorage<SqlExecutor>();
 const lockOwner = new AsyncLocalStorage<true>();
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const globalForDb = globalThis as unknown as {
   __futebolSql?: Promise<SqlDb>;
   __futebolSchema?: number;
@@ -91,6 +91,12 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_month_open ON month_payments(paid, player_key);
+
+  CREATE TABLE IF NOT EXISTS month_debt_skips (
+    player_key TEXT NOT NULL,
+    year_month TEXT NOT NULL,
+    PRIMARY KEY (player_key, year_month)
+  );
 `;
 
 function rowObject<T>(columns: string[], row: ResultSet["rows"][number]): T {

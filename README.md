@@ -26,7 +26,7 @@ Para definir o administrador antes de criar o banco, copie `.env.example` para `
 
 - Cadastrar o elenco de quem joga.
 - No dia, marcar a chegada a partir desse elenco, na ordem.
-- Subir, descer, corrigir o nome ou tirar alguém da lista do dia aberto.
+- Subir, descer, corrigir o nome ou tirar alguém da lista do dia aberto. Quem sai da única lista do mês também sai de quem deve esse mês. Se ainda estiver em outra lista do mesmo mês, a dívida fica.
 - Marcar a mensalidade do mês no elenco ou na lista do dia.
 - **Começar novo dia**: a ordem vai para o histórico. O pagamento do mês continua.
 - Em **Devem**, quitar um mês ou todos os meses em aberto de uma pessoa.

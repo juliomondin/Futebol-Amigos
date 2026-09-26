@@ -138,6 +138,12 @@ async function syncCurrentMonth() {
       month,
     );
     if (existing) continue;
+    const skipped = await one(
+      "SELECT player_key FROM month_debt_skips WHERE player_key = ? AND year_month = ?",
+      player.player_key,
+      month,
+    );
+    if (skipped) continue;
     await run(
       "INSERT INTO month_payments (id, player_key, year_month, paid, paid_at) VALUES (?, ?, ?, 0, NULL)",
       crypto.randomUUID(),
@@ -149,6 +155,11 @@ async function syncCurrentMonth() {
 
 async function ensurePlayerMonth(playerKeyValue: string) {
   const month = saoPauloMonthKey();
+  await run(
+    "DELETE FROM month_debt_skips WHERE player_key = ? AND year_month = ?",
+    playerKeyValue,
+    month,
+  );
   const existing = await one(
     "SELECT id FROM month_payments WHERE player_key = ? AND year_month = ?",
     playerKeyValue,
@@ -564,11 +575,43 @@ export async function movePlayer(entryId: string, direction: "up" | "down") {
   });
 }
 
+async function hasListInMonth(playerKeyValue: string, yearMonth: string) {
+  const rows = await many<{ created_at: string }>(
+    `SELECT d.created_at
+     FROM entries e
+     JOIN days d ON d.id = e.day_id
+     WHERE e.player_key = ?`,
+    playerKeyValue,
+  );
+  return rows.some((row) => saoPauloMonthKey(new Date(row.created_at)) === yearMonth);
+}
+
+async function dropMonthDebtIfLastList(playerKeyValue: string, yearMonth: string) {
+  if (await hasListInMonth(playerKeyValue, yearMonth)) return;
+
+  const open = await one<{ id: string }>(
+    "SELECT id FROM month_payments WHERE player_key = ? AND year_month = ? AND paid = 0",
+    playerKeyValue,
+    yearMonth,
+  );
+  if (!open) return;
+
+  await run("DELETE FROM month_payments WHERE id = ?", open.id);
+  await run(
+    "INSERT INTO month_debt_skips (player_key, year_month) VALUES (?, ?) ON CONFLICT (player_key, year_month) DO NOTHING",
+    playerKeyValue,
+    yearMonth,
+  );
+}
+
 export async function removePlayer(entryId: string) {
   await withTransaction(async () => {
     const entry = await entryContext(entryId);
     if (!entry) throw new AppError("Esse nome não está na lista.");
     if (entry.day_status !== "open") throw new AppError("Essa lista já fechou.");
+
+    const day = await one<{ created_at: string }>("SELECT created_at FROM days WHERE id = ?", entry.day_id);
+    const yearMonth = day ? saoPauloMonthKey(new Date(day.created_at)) : saoPauloMonthKey();
 
     await run("DELETE FROM debts WHERE entry_id = ?", entryId);
     await run("DELETE FROM entries WHERE id = ?", entryId);
@@ -581,6 +624,8 @@ export async function removePlayer(entryId: string) {
     for (const [index, row] of rest.entries()) {
       await run("UPDATE entries SET position = ? WHERE id = ?", index + 1, row.id);
     }
+
+    await dropMonthDebtIfLastList(entry.player_key, yearMonth);
   });
 }
 

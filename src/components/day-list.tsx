@@ -243,7 +243,7 @@ function DeleteDialog({ entry, onClose }: { entry: EntryView | null; onClose: ()
           <DialogTitle className="font-heading text-xl uppercase">Tirar da lista?</DialogTitle>
           <DialogDescription>
             {entry
-              ? `${entry.playerName} sai da ordem de chegada e os próximos sobem uma posição.`
+              ? `${entry.playerName} sai da ordem de chegada e os próximos sobem uma posição. Se esta for a única lista dele neste mês, ele sai de quem deve o mês.`
               : ""}
           </DialogDescription>
         </DialogHeader>
